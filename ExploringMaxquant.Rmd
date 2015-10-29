@@ -15,73 +15,61 @@ To populate the database I am going to use __R__ and the package _dplyr_.
 
 
 ```{r}
-
 rm(list=ls())
 suppressMessages(library(dplyr))
-
 #path <- "output/20150930/combined/txt/"
 
-path <- "c:/processing/external/EXTERNAL_0/paolo_20151029_MSQC1/combined/txt"
-files <- dir(path)
-filesf <- dir(path, full.names = T)
-
-
-files <- data_frame(files,filesf)
-
-files
-
-info <- file.info(files$filesf)
-stopifnot(files$filesf == rownames(info))
-files <- tbl_df(data.frame(files, info))
-glimpse(files)
-
-```
-
-Select text files with size greater than 0.
-
-```{r}
-files <- filter(files, size > 0)
-files <- files[ grep("\\.txt",files$files),]
-
-```
-
-## Read all the files into R
-
-```{r}
-mqdata <-list()
-for(file in files$filesf){
-  mqdata[[file]] <- read.csv(file,sep="\t",stringsAsFactors = FALSE)
-}
-stopifnot(names(mqdata) == files$filesf)
-
-```
-
-## Dump them into an sqlite database
-
-Before doing it you need to fix the database files which we derive from the file names.
-As a collegue of mine says if you see a file name such as "Oxidation (M)Sites.txt" you know where they _came from_. It is a lonely place.
-
-```{r, results='hide'}
-names <- files$files
-names <- gsub("\\.txt", "",files$files)
-names <- gsub("[[:space:]]", "", names) 
-names <- gsub("[[:punct:]]", "", names)
-names(mqdata) <- names
-
-library(DBI)
-if(file.exists(file.path(path,"my_mqdb.sqlite3"))){
-  file.remove(file.path(path,"my_mqdb.sqlite3"))
-}
+createDB <- function( path2MQ , sqliteLocation = NULL , sqlname=NULL){
+  if(is.null(sqliteLocation)){
+    sqliteLocation = path2MQ
+  }
+  if(is.null(sqlname)){
+    sqlname="my_mqdb.sqlite3"
+  }
   
-my_mqdb <- src_sqlite(file.path(path,"my_mqdb.sqlite3"), create=TRUE)
+  files <- dir(path2MQ)
+  filesf <- dir(path2MQ, full.names = T)
+  files <- data_frame(files,filesf)
 
-for( i in 1:length(mqdata)){
-  tmp<-copy_to(my_mqdb, mqdata[[i]], name=names(mqdata)[i], temporary = FALSE)
+  info <- file.info(files$filesf)
+  stopifnot(files$filesf == rownames(info))
+  files <- tbl_df(data.frame(files, info))
+  glimpse(files)
+
+  files <- filter(files, size > 0)
+  files <- files[ grep("\\.txt",files$files),]
+  
+  mqdata <-list()
+  for(file in files$filesf){
+    mqdata[[file]] <- read.csv(file,sep="\t",stringsAsFactors = FALSE)
+  }
+  stopifnot(names(mqdata) == files$filesf)
+  
+  names <- files$files
+  names <- gsub("\\.txt", "",files$files)
+  names <- gsub("[[:space:]]", "", names) 
+  names <- gsub("[[:punct:]]", "", names)
+  names(mqdata) <- names
+
+  library(DBI)
+  if(file.exists(file.path(sqliteLocation,sqlname))){
+    file.remove(file.path(sqliteLocation,sqlname))
+  }
+  
+  my_mqdb <- src_sqlite(file.path(sqliteLocation,sqlname), create=TRUE)
+
+  for( i in 1:length(mqdata)){
+    tmp<-copy_to(my_mqdb, mqdata[[i]], name=names(mqdata)[i], temporary = FALSE)
+  }
+  dbDisconnect(my_mqdb$con)
 }
-dbDisconnect(my_mqdb$con)
 
 ```
 
-Now you are ready to explore the data with SQLiteStudio.
+```{r}
+path <- "c:/processing/external/EXTERNAL_0/paolo_20151029_MSQC1/combined/txt"
+sqliteLocation <- "../output/"
+dbname <- "paolo_20151029_MSQC1.sqlite3"
+createDB( path , sqliteLocation, dbname )
 
-For more interesting information about Data Science in Mass Spectrometry visit [http://aggrivet.blogspot.ch/](http://aggrivet.blogspot.ch/).
+```

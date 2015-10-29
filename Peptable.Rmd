@@ -17,7 +17,6 @@ toc: yes
 
 ```{r,echo=FALSE, results="hide", message=FALSE}
 
-
 library(dplyr)
 library(DBI)
 library(knitr)
@@ -25,7 +24,7 @@ opts_chunk$set(echo=FALSE, results="hide")
 
 rm(list=ls())
 library(quantable)
-targets<-read.csv( "data/mrmData/msqc1-table2.csv" , stringsAsFactors = FALSE )
+targets<-read.csv( "../data/mrmData/msqc1-table2.csv" , stringsAsFactors = FALSE )
 head(targets)
 sp <- targets[,1]
 strsplit(sp,split = "\\(|\\)")
@@ -59,9 +58,10 @@ library(reshape2)
 library(quantable)
 library(scales)
 
-path <- "output/20150930/combined/txt/"
+path <- "c:/processing/external/EXTERNAL_0/paolo_20151029_MSQC1/combined/txt"
 
 my_mqdb <- src_sqlite(file.path(path,"my_mqdb.sqlite3"))
+
 dbListTables( my_mqdb$con )
 
 peptides_tbl <- tbl(my_mqdb, "peptides" )
