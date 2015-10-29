@@ -1,0 +1,87 @@
+---
+title: "Exploring Maxquant Output With SQLITE"
+author: "Witold Wolski"
+date: "5 October 2015"
+output: html_document
+---
+
+# Generate sql database from Maxquant output
+
+[Maxquant](http://www.maxquant.org) produces quite convoluted output in tab delimited files. To get a first idea obout those files I would like to read them into a sql database and explore them using [sqlitestudio](http://sqlitestudio.pl/).
+
+To populate the database I am going to use __R__ and the package _dplyr_.
+
+## Collect meta information about the files
+
+
+```{r}
+
+rm(list=ls())
+suppressMessages(library(dplyr))
+
+#path <- "output/20150930/combined/txt/"
+
+path <- "c:/processing/external/EXTERNAL_0/paolo_20151029_MSQC1/combined/txt"
+files <- dir(path)
+filesf <- dir(path, full.names = T)
+
+
+files <- data_frame(files,filesf)
+
+files
+
+info <- file.info(files$filesf)
+stopifnot(files$filesf == rownames(info))
+files <- tbl_df(data.frame(files, info))
+glimpse(files)
+
+```
+
+Select text files with size greater than 0.
+
+```{r}
+files <- filter(files, size > 0)
+files <- files[ grep("\\.txt",files$files),]
+
+```
+
+## Read all the files into R
+
+```{r}
+mqdata <-list()
+for(file in files$filesf){
+  mqdata[[file]] <- read.csv(file,sep="\t",stringsAsFactors = FALSE)
+}
+stopifnot(names(mqdata) == files$filesf)
+
+```
+
+## Dump them into an sqlite database
+
+Before doing it you need to fix the database files which we derive from the file names.
+As a collegue of mine says if you see a file name such as "Oxidation (M)Sites.txt" you know where they _came from_. It is a lonely place.
+
+```{r, results='hide'}
+names <- files$files
+names <- gsub("\\.txt", "",files$files)
+names <- gsub("[[:space:]]", "", names) 
+names <- gsub("[[:punct:]]", "", names)
+names(mqdata) <- names
+
+library(DBI)
+if(file.exists(file.path(path,"my_mqdb.sqlite3"))){
+  file.remove(file.path(path,"my_mqdb.sqlite3"))
+}
+  
+my_mqdb <- src_sqlite(file.path(path,"my_mqdb.sqlite3"), create=TRUE)
+
+for( i in 1:length(mqdata)){
+  tmp<-copy_to(my_mqdb, mqdata[[i]], name=names(mqdata)[i], temporary = FALSE)
+}
+dbDisconnect(my_mqdb$con)
+
+```
+
+Now you are ready to explore the data with SQLiteStudio.
+
+For more interesting information about Data Science in Mass Spectrometry visit [http://aggrivet.blogspot.ch/](http://aggrivet.blogspot.ch/).

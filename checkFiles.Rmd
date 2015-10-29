@@ -1,0 +1,118 @@
+---
+title: "check files"
+author: "Witold Wolski"
+date: "16 October 2015"
+output: pdf_document
+---
+
+
+
+```{r, echo=FALSE}
+library(knitr)
+opts_chunk$set(echo=FALSE, message=FALSE, results="hide")
+
+```
+
+```{r}
+rm(list=ls())
+
+getSeqNum<-function(filetable){
+  seqnum <- 1
+  j <- 1
+  for(i in 2:dim(filetable)[1]){
+    print(i)
+    tmp <- filetable[i-1,c("date","site")]
+    tmp2 <- filetable[i,c("date","site")]
+    
+    print(tmp)
+    print(tmp2)
+    if(sum(tmp == tmp2) ==2 ){
+      j <- j + 1
+      seqnum <- c(seqnum, j)
+    }else{
+      j <- 1
+      seqnum <- c(seqnum,j)
+    }
+  }
+  return(seqnum)
+}
+
+
+mapping <- c("EXTERNAL_0" = "FGCZ","EXTERNAL_1" = "CRG","EXTERNAL_2" = "VIB" ,"EXTERNAL_3" = "MPI","EXTERNAL_4" = "IMP" )
+
+getdate <- function(str){
+  tmp <-gregexpr( "[0-9]{8}", str )
+  return(regmatches(str,tmp)[[1]][2])
+}
+
+rawfile <- dir(path = "data/RAWData/external/", pattern="*.raw",recursive = T)
+
+file.path(rawfile[[1]])
+fname<-basename(rawfile)
+dname <-dirname(rawfile)
+
+
+date <- sapply(rawfile,getdate)
+site <- sapply(rawfile, function(x){strsplit(x, "/")[[1]][[1]]})
+site <-mapping[site]
+
+filetable <- cbind(filename = fname, dirname= dname, date = date, site=site)
+ord <-order(filetable[,"site"], filetable[,"date"])
+filetable <-filetable[ord,]
+
+
+seqnum <- getSeqNum(filetable)
+
+seqnum
+dim(filetable)
+length(seqnum)
+filetable <- cbind(filetable, seqnum= seqnum)
+filetable
+
+
+write.table(file="data/RAWData/external/filemapping2.txt",filetable,row.names = F, quote = F)
+
+```
+
+```{r}
+rm(list=ls())
+library(dplyr)
+library(quantable)
+
+filemap<-read.table("data/RAWData/external/filemapping.txt",stringsAsFactors = FALSE, header=TRUE,sep=" ")
+
+filemap$date <- as.character(filemap$date)
+filemap %>% glimpse
+
+xx <- apply(filemap[,c("site","date","seqnum","instrument")], 1, paste,collapse = "_")
+siteintstrument <- apply(filemap[,c("site","instrument")],1,paste,collapse="_")
+
+filemap<-cbind(filemap , displayname = xx, siteinstrument=siteintstrument)
+write.table(file="data/RAWData/external/filemappingFinal.txt",filemap,row.names = F, quote = F)
+filemap$date <- as.character(filemap$date)
+
+
+date <- as.Date(filemap$date, "%Y%m%d")
+format(date, "%Y - %m")
+measurementsMONTH <- as.matrix((table(format(date, "%Y - %m"), filemap$siteinstrument)))
+
+dd <- as.numeric( format(date+3, "%U"))
+
+allweeks <- c(range(dd)[1]:range(dd)[2])
+sites <- c(rep("THEO", length(allweeks)), as.character(filemap$siteinstrument))
+allweeks <- c(allweeks,dd)
+
+length(allweeks)
+length(sites)
+
+measurementsWeek <- as.matrix( table(allweeks, sites ) )
+
+tmp <- max(measurementsMONTH)
+imageWithLabels(measurementsMONTH, col=getGreensScale(tmp+1))
+tmp <- max(measurementsWeek)
+imageWithLabels(measurementsWeek, col=getGreensScale(tmp+1))
+
+
+```
+
+

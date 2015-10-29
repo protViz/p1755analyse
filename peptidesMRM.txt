@@ -1,0 +1,15 @@
+Peptide uniprotID Protein Name
+ALIVLAHSER P15559 NADPH dehydrogenase
+AVQQPDGLAVLGIFLK P00918 Carbonic Anhydrase II
+EGHLSPDIVAEQK P15559 NADPH dehydrogenase
+ESDTSYVSLK P02741 C-reactive Protein
+FEDENFILK P62937 Peptidyl-Prolyl cis-trans isomerase A
+FSTVAGESGSADTVR P04040 Catalase
+GAGAFGYFEVTHDITK P04040 Catalase
+GGPFSDSYR P00915 Carbonic Anhydrase I
+GYSIFSYATK P02741 C-reactive Protein
+NLSVEDAAR P04040 Catalase
+SADFTNFDPR P00918 Carbonic Anhydrase II
+TAENFR P62937 Peptidyl-Prolyl cis-trans isomerase A
+VLDALQAIK P00915 Carbonic Anhydrase I
+VSFELFADK P62937 Peptidyl-Prolyl cis-trans isomerase A

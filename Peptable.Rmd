@@ -1,0 +1,189 @@
+---
+title: "Analysing MaxQuant Output with R"
+author: "Witold Wolski"
+date: "30 September 2015"
+output: pdf_document
+#output: ioslides_presentation
+toc: yes
+---
+
+# prepare mrm table
+
+- nr of assigned spectra (MS2) / versus total spectra
+- How many H/L target peptides are identified
+- Ratio among H/L of the target peptides
+- Intensity of heavy or light over the runs
+
+
+```{r,echo=FALSE, results="hide", message=FALSE}
+
+
+library(dplyr)
+library(DBI)
+library(knitr)
+opts_chunk$set(echo=FALSE, results="hide")
+
+rm(list=ls())
+library(quantable)
+targets<-read.csv( "data/mrmData/msqc1-table2.csv" , stringsAsFactors = FALSE )
+head(targets)
+sp <- targets[,1]
+strsplit(sp,split = "\\(|\\)")
+mrm <- split2table(sp,split = "\\(|\\)")
+mrm[,1] <- gsub("^\\s+|\\s+$", "", mrm[,1])
+head(mrm)
+head(targets)
+mrm = data.frame( mrm , targets[,2:ncol(targets)])
+colnames( mrm )[1:7] <- c("Protein Name", "uniprotID","Peptide","monoMass","z","Q1.mz","Q3.mz")
+head( mrm )
+write.table(mrm , file="data/mrmData/transitionsFixed.tab" , sep="\t" , row.names = FALSE , quote = FALSE )
+protidS<- as.character(unique(mrm$uniprotID))
+
+mrm[protidS[1] == mrm$uniprotID,]
+mrm <- tbl_df(mrm)
+mrm %>% group_by(Peptide, `Protein Name`) %>% summarise(pepcount = n())
+
+peptidesMRM <-mrm %>% select(Peptide, uniprotID, `Protein Name`) %>% distinct %>% filter(!grepl("\\[" ,Peptide ) ) %>% arrange(Peptide)
+
+theoryRatios <- read.table("theoryRatios.txt",sep=" ")
+
+
+```
+
+# Peptide Evidence
+
+```{r}
+library(dplyr)
+library(DBI)
+library(reshape2)
+library(quantable)
+library(scales)
+
+path <- "output/20150930/combined/txt/"
+
+my_mqdb <- src_sqlite(file.path(path,"my_mqdb.sqlite3"))
+dbListTables( my_mqdb$con )
+
+peptides_tbl <- tbl(my_mqdb, "peptides" )
+evidence_tbl <- tbl(my_mqdb, "evidence")
+proteins_tbl <- tbl(my_mqdb, "proteinGroups")
+
+experiments <- evidence_tbl %>% select(Experiment) %>% distinct
+experiments %>% print(n=Inf)
+
+evidence <- evidence_tbl  %>% select(Experiment, Modifications, Sequence, Modified.sequence, contains("Intensity"), m.z,Charge, Calibrated.retention.time) 
+
+evidence %>% glimpse
+
+```
+
+
+```{r}
+
+resMRMQuant <- inner_join(peptidesMRM,evidence, by=c("Peptide"="Sequence"), copy=TRUE)
+
+plotPepFrequencies <- function(table, main="peptide count"){
+  rd <- table %>% group_by(Peptide,Experiment) %>% summarise(pepcount = n())  %>% arrange(Experiment)
+  colsGreen <- brewer_pal(palette = "Greens")(5)
+  ygreen <- gradient_n_pal(colsGreen)(seq(0, 1, length.out = 20))
+  tmp <- acast(rd , Peptide ~ Experiment, value.var='pepcount' )
+  imageWithLabels(tmp, marLeft = c(6,8,3,1), marRight = c(1,2,3,1),col=ygreen, main=main)
+}
+plotPepFrequencies(resMRMQuant, main="all peptide count")
+
+```
+
+
+
+```{r}
+tmpLys8Arg10 <- resMRMQuant %>% filter(grepl("Lys8", Modifications) |grepl("Arg10", Modifications) ) 
+plotPepFrequencies(tmpLys8Arg10, main="labeled peptide count")
+
+tmpNonLab <- resMRMQuant %>% filter(Modifications=="Unmodified" )
+plotPepFrequencies(tmpNonLab , main="not labeled peptide count")
+
+lys8AggArg10 <- tmpLys8Arg10 %>% group_by(Peptide, uniprotID, Charge, Experiment, Modified.sequence) %>% summarise(IntensityN = sum(Intensity, na.rm =TRUE))
+lys8AggArg10 %>% glimpse
+
+nonLAgg <- tmpNonLab %>% group_by(Peptide,uniprotID,Charge,Experiment,Modified.sequence) %>% summarise(IntensityN = sum(Intensity, na.rm =TRUE))
+nonLAgg %>% glimpse
+
+resLys8Arg10None <- inner_join(lys8AggArg10, nonLAgg,by=c("Peptide"="Peptide", "Experiment" = "Experiment",
+                                         "Charge" = "Charge", "uniprotID"  = "uniprotID"))
+
+for( i in which(lapply(resLys8Arg10None, class) == "character")){
+  resLys8Arg10None[[i]] <- as.factor(resLys8Arg10None[[i]])
+}
+
+```
+
+```{r,fig.width=12, fig.height=12}
+
+library(lattice)
+xyplot(IntensityN.y  ~ Experiment | Peptide + Charge  , data= resLys8Arg10None , scales=list(x=list(rot=45),y=list(log=10))) 
+xyplot(IntensityN.x  ~ Experiment | Peptide + Charge , data= resLys8Arg10None , scales=list(x=list(rot=45), y=list(log=10))) 
+xyplot(log2(IntensityN.x/IntensityN.y)  ~ Experiment | Peptide + Charge , data= resLys8Arg10None , scales=list(x=list(rot=45))) 
+
+```
+
+```{r,fig.height=10, fig.width=10}
+resLys8Arg10None %>% select(Experiment) %>% distinct
+theoryRatios <- read.table("theoryRatios.txt",sep=" ")
+theoryRatios[,1] <- gsub("\\[|\\]","",theoryRatios[,1])
+theoryRatios[,4] <- log2(theoryRatios[,3])
+theoryRatios
+
+colnames(theoryRatios) <- c("Pepsequence", "concentration", "foldchange" , "log2fc")
+theoryRatios
+
+resLys8Arg10None
+resLys8Arg10None <- resLys8Arg10None %>% mutate(foldChangeExp = log2(IntensityN.y / IntensityN.x ))
+
+resLys8Arg10None$Peptide <- as.character(resLys8Arg10None$Peptide)
+join <- inner_join(resLys8Arg10None ,theoryRatios , by=c("Peptide" = "Pepsequence"))
+join %>% glimpse
+
+xyplot(log2fc ~ foldChangeExp | Experiment, data= join,type = c("p", "r"), col.line = "darkorange", lwd = 1)
+```
+
+
+```{r, fig.height=10}
+
+join$foldChangeExp[join$foldChangeExp == -Inf] <- NA
+join %>% filter(Experiment == "20150528_03_FGCZpaolo_MSQC1_60min") %>% select(log2fc, foldChangeExp)
+corExp <- join %>% group_by(Experiment) %>% summarise(V1=cor(foldChangeExp ,log2fc, method="spearman",use= "pairwise.complete.obs" ))
+corExp
+cor <- corExp$V1
+names(cor) <- corExp$Experiment
+par(mar=c(22,4,2,2))
+barplot(cor^2,las=2,ylim=c(0,1), ylab= "R^2")
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

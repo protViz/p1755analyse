@@ -1,0 +1,114 @@
+---
+title: "Join Tables On Float Values With Errors"
+author: "Witold Wolski"
+date: "6 October 2015"
+output: 
+  html_document: 
+    toc: yes
+---
+
+# Problem definition
+
+In mass spectrometry you frequently need to match points in RT and MZ with some measurement error.
+
+
+
+# Generate sample data
+
+```{r}
+
+
+
+tmp1 <- cbind(sample(letters,1000,replace=TRUE),sample(letters,1000,replace=TRUE),sample(letters,1000,replace=TRUE))
+tmp2 <- cbind(sample(letters,1000,replace=TRUE),sample(letters,1000,replace=TRUE),sample(letters,1000,replace=TRUE))
+
+tmp1<-apply(tmp1, 1, paste ,collapse="")
+tmp2<-apply(tmp2, 1, paste ,collapse="")
+
+nrseq1 <- 1:1000
+nrseq2 <- (rnorm(1000, mean=1000,sd=100))
+
+tab1 <- data.frame(tmp1, nrseq1 + rnorm(1000,0,1.5), nrseq2 + rnorm(1000,0,0.4))
+tab2 <-  data.frame(tmp2,  nrseq1 + rnorm(1000,0,1.5), nrseq2 + rnorm(1000,0,0.4) )
+
+colnames(tab1) <- c("name","rt","mz")
+
+tab2 <-  data.frame(tmp2,  nrseq1 + rnorm(1000,0,1.5), nrseq2 + rnorm(1000,0,0.4) )
+colnames(tab2) <- c("name","rt","mz")
+```
+
+Add 4 columns with error range for mz and rt to one of the tables
+
+  - mzmi - min mass
+  - mzma - max mass
+  - rtmi - min rt
+  - rtma - max rt
+
+
+```{r}
+
+mzerror <- 1
+rterror <- 2.5
+tab2<-data.frame(tab2, rtmi = tab2$rt - rterror , rtma = tab2$rt + rterror , mzmi = tab2$mz - mzerror, mzma = tab2$mz + mzerror )
+
+```
+
+# Using DBI and dplyr
+
+## Dump both dataframes into a sqlite database using dplyr
+
+```{r}
+suppressMessages(library(dplyr))
+suppressMessages(library(DBI))
+
+dbfile <- "my_mqdb.sqlite3"
+if(file.exists(dbfile)){
+  file.remove(dbfile)
+}
+
+my_mqdb <- src_sqlite(dbfile, create=TRUE)
+copy_to(my_mqdb, tab1,  temporary = FALSE)
+copy_to(my_mqdb, tab2,  temporary = FALSE)
+
+
+dbDisconnect(my_mqdb$con)
+
+```
+
+## Join both tables on double columns to find matching features
+
+```{r}
+
+my_mqdb <- src_sqlite(dbfile)
+dbListTables(my_mqdb$con)
+res <-dbSendQuery(my_mqdb$con , "select tab1.mz, tab1.rt, tab2.mz as tab2mz, tab2.rt as tab2rt from tab1 
+                  inner join tab2 on tab1.mz < tab2.mzma and tab1.mz > tab2.mzmi 
+                  and tab1.rt < tab2.rtma and tab1.rt > tab2.rtmi")
+resData <- dbFetch(res,n=-1)
+dbClearResult(res)
+dim(resData)
+head(resData)
+plot(resData$rt, resData$mz, xlab="RT", ylab="mz",pch="x" )
+points(resData$tab2rt, resData$tab2mz,col=2 )
+plot((resData$rt + resData$tab2rt)/2, resData$mz - resData$tab2mz, xlab="rt")
+plot(resData$rt - resData$tab2rt, (resData$mz + resData$tab2mz)/2, ylab="mz")
+dbDisconnect(my_mqdb$con)
+
+```
+
+AFAIK you can't do it as easily with any of the R join methods as `base::merge` or `dplyr::innter_join`. But maybee sqldf does it?
+
+# Joining using sqldf package
+
+```{r}
+suppressMessages(library(sqldf))
+res2 <- sqldf("select tab1.mz, tab1.rt, tab2.mz as tab2mz, tab2.rt as tab2rt from tab1 
+                  inner join tab2 on tab1.mz < tab2.mzma and tab1.mz > tab2.mzmi 
+                  and tab1.rt < tab2.rtma and tab1.rt > tab2.rtmi")
+dim(res2)
+head(res2)
+plot(res2$rt, res2$mz, xlab="RT", ylab="mz",pch="x" )
+points(res2$tab2rt, res2$tab2mz,col=2 )
+
+
+```

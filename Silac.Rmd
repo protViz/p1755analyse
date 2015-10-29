@@ -1,0 +1,29 @@
+---
+title: "Analyse R Silac"
+author: "Witold Wolski"
+date: "7 October 2015"
+output: html_document
+---
+
+
+
+```{r}
+path <- "output/20151006Silac/combined/txt/"
+
+my_mqdb <- src_sqlite(file.path(path,"my_mqdb.sqlite3"))
+dbListTables(my_mqdb$con )
+
+peptides_tbl <- tbl(my_mqdb, "peptides" )
+
+peptides_tbl %>% glimpse
+bb <- peptides_tbl %>% select(Sequence,contains("Intensity"))
+bb %>% glimpse
+
+bb <- bb %>% select(Sequence, contains("20150831_03_FGCZpaolo_MSQC1_60min")) %>% arrange(Sequence)
+bb1 <-bb %>%  collect 
+
+plot(unlist(bb1[,2]),unlist(bb1[,3]))
+
+colnames(bb1) <- c("Sequence","Unlabelled", "L", "H")
+
+```
