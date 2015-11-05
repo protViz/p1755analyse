@@ -10,6 +10,9 @@ output: pdf_document
 ```{r, echo=FALSE}
 library(knitr)
 opts_chunk$set(echo=FALSE, message=FALSE, results="hide")
+library(dplyr)
+library(quantable)
+
 
 ```
 
@@ -45,9 +48,8 @@ getdate <- function(str){
   return(regmatches(str,tmp)[[1]][2])
 }
 
-rawfile <- dir(path = "data/RAWData/external/", pattern="*.raw",recursive = T)
+rawfile <- dir(path = "c:/processing/external/", pattern="*.raw",recursive = T)
 
-file.path(rawfile[[1]])
 fname<-basename(rawfile)
 dname <-dirname(rawfile)
 
@@ -67,19 +69,25 @@ seqnum
 dim(filetable)
 length(seqnum)
 filetable <- cbind(filetable, seqnum= seqnum)
-filetable
 
-
-write.table(file="data/RAWData/external/filemapping2.txt",filetable,row.names = F, quote = F)
+write.table(file="../output/filemapping2.txt",filetable,row.names = F, quote = F)
 
 ```
 
-```{r}
-rm(list=ls())
-library(dplyr)
-library(quantable)
+# instrument mappings
 
-filemap<-read.table("data/RAWData/external/filemapping.txt",stringsAsFactors = FALSE, header=TRUE,sep=" ")
+```{r}
+mappingInstrument <- c("FGCZ" = "VE" , "CRG" = "VE" , "VIB" = "QE" ,"IMP" = "DIV")
+mappingInstrument<-cbind(site = names(mappingInstrument), instrument= mappingInstrument)
+mappingInstrument
+filemap <- merge(filetable, mappingInstrument)
+
+filemap
+
+```
+
+
+```{r}
 
 filemap$date <- as.character(filemap$date)
 filemap %>% glimpse
@@ -88,12 +96,11 @@ xx <- apply(filemap[,c("site","date","seqnum","instrument")], 1, paste,collapse 
 siteintstrument <- apply(filemap[,c("site","instrument")],1,paste,collapse="_")
 
 filemap<-cbind(filemap , displayname = xx, siteinstrument=siteintstrument)
-write.table(file="data/RAWData/external/filemappingFinal.txt",filemap,row.names = F, quote = F)
+
+write.table(file="../output/filemappingFinal.txt",filemap,row.names = F, quote = F)
 filemap$date <- as.character(filemap$date)
 
-
 date <- as.Date(filemap$date, "%Y%m%d")
-format(date, "%Y - %m")
 measurementsMONTH <- as.matrix((table(format(date, "%Y - %m"), filemap$siteinstrument)))
 
 dd <- as.numeric( format(date+3, "%U"))
@@ -108,9 +115,10 @@ length(sites)
 measurementsWeek <- as.matrix( table(allweeks, sites ) )
 
 tmp <- max(measurementsMONTH)
-imageWithLabels(measurementsMONTH, col=getGreensScale(tmp+1))
+imageWithLabels(measurementsMONTH, col=getGreensScale(tmp+1), main="months with measurements")
 tmp <- max(measurementsWeek)
-imageWithLabels(measurementsWeek, col=getGreensScale(tmp+1))
+
+imageWithLabels(measurementsWeek, col=getGreensScale(tmp+1), main="weeks with measurement")
 
 
 ```

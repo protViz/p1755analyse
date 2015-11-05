@@ -7,7 +7,7 @@ output: pdf_document
 toc: yes
 ---
 
-# prepare mrm table
+# Prepare mrm table
 
 - nr of assigned spectra (MS2) / versus total spectra
 - How many H/L target peptides are identified
@@ -15,12 +15,19 @@ toc: yes
 - Intensity of heavy or light over the runs
 
 
-```{r,echo=FALSE, results="hide", message=FALSE}
-
+```{r, echo=FALSE, results="hide", message=FALSE}
 library(dplyr)
 library(DBI)
 library(knitr)
+library(reshape2)
+library(quantable)
+library(scales)
+
 opts_chunk$set(echo=FALSE, results="hide")
+
+```
+
+```{r,echo=FALSE, results="hide", message=FALSE}
 
 rm(list=ls())
 library(quantable)
@@ -34,8 +41,8 @@ head(mrm)
 head(targets)
 mrm = data.frame( mrm , targets[,2:ncol(targets)])
 colnames( mrm )[1:7] <- c("Protein Name", "uniprotID","Peptide","monoMass","z","Q1.mz","Q3.mz")
-head( mrm )
-write.table(mrm , file="data/mrmData/transitionsFixed.tab" , sep="\t" , row.names = FALSE , quote = FALSE )
+
+write.table(mrm , file="../data/mrmData/transitionsFixed.tab" , sep="\t" , row.names = FALSE , quote = FALSE )
 protidS<- as.character(unique(mrm$uniprotID))
 
 mrm[protidS[1] == mrm$uniprotID,]
@@ -43,7 +50,6 @@ mrm <- tbl_df(mrm)
 mrm %>% group_by(Peptide, `Protein Name`) %>% summarise(pepcount = n())
 
 peptidesMRM <-mrm %>% select(Peptide, uniprotID, `Protein Name`) %>% distinct %>% filter(!grepl("\\[" ,Peptide ) ) %>% arrange(Peptide)
-
 theoryRatios <- read.table("theoryRatios.txt",sep=" ")
 
 
@@ -52,51 +58,73 @@ theoryRatios <- read.table("theoryRatios.txt",sep=" ")
 # Peptide Evidence
 
 ```{r}
-library(dplyr)
-library(DBI)
-library(reshape2)
-library(quantable)
-library(scales)
 
-path <- "c:/processing/external/EXTERNAL_0/paolo_20151029_MSQC1/combined/txt"
-
-my_mqdb <- src_sqlite(file.path(path,"my_mqdb.sqlite3"))
+path <- "../output/jennifergarcia_20150923_firstBatchFromCRG.sqlite3"
+my_mqdb <- src_sqlite(path)
 
 dbListTables( my_mqdb$con )
 
 peptides_tbl <- tbl(my_mqdb, "peptides" )
 evidence_tbl <- tbl(my_mqdb, "evidence")
 proteins_tbl <- tbl(my_mqdb, "proteinGroups")
+dim(evidence_tbl)
 
-experiments <- evidence_tbl %>% select(Experiment) %>% distinct
-experiments %>% print(n=Inf)
+colnames(evidence_tbl)
+evidence_tbl %>% select(Raw.file) %>% glimpse
+
+annotations <- tbl_df(read.table("../output/filemappingFinal.txt",header=TRUE))
+annotations$filename
+
+
+annotations <- annotations %>% select(filename,displayname)
+annotations$filename <- gsub(".raw","", annotations$filename)
+
+annotations %>% glimpse
+
+
+evidence_tbl2 <- inner_join(evidence_tbl, annotations, by=c("Raw.file" = "filename"),copy=TRUE)
+evidence_tbl <- evidence_tbl2 %>% collect
+evidence_tbl <- evidence_tbl %>% rename(Experiment = displayname)
+evidence_tbl %>% dim
+evidence_tbl %>% glimpse
 
 evidence <- evidence_tbl  %>% select(Experiment, Modifications, Sequence, Modified.sequence, contains("Intensity"), m.z,Charge, Calibrated.retention.time) 
-
-evidence %>% glimpse
+evidence %>% select(Modifications) %>% distinct()
 
 ```
 
 
 ```{r}
-
 resMRMQuant <- inner_join(peptidesMRM,evidence, by=c("Peptide"="Sequence"), copy=TRUE)
-
 plotPepFrequencies <- function(table, main="peptide count"){
   rd <- table %>% group_by(Peptide,Experiment) %>% summarise(pepcount = n())  %>% arrange(Experiment)
   colsGreen <- brewer_pal(palette = "Greens")(5)
-  ygreen <- gradient_n_pal(colsGreen)(seq(0, 1, length.out = 20))
   tmp <- acast(rd , Peptide ~ Experiment, value.var='pepcount' )
-  imageWithLabels(tmp, marLeft = c(6,8,3,1), marRight = c(1,2,3,1),col=ygreen, main=main)
+  
+  ygreen <- gradient_n_pal(colsGreen)(seq(0, 1, length.out = (max(tmp, na.rm = TRUE))))
+  imageWithLabels(t(tmp), marLeft = c(6,8,3,1), marRight = c(1,2,3,1),col=ygreen, main=main)
+
+  tmp
 }
-plotPepFrequencies(resMRMQuant, main="all peptide count")
+
+dd <- plotPepFrequencies(resMRMQuant, main="all peptide count")
+dev.off()
+
+par(mar=c(10,3,2,2))
+matplot(t(dd),type="l",axes=T)
+axis(1,at=1:ncol(dd),labels=colnames(dd),las=2,cex=0.7)
 
 ```
 
 
 
 ```{r}
+
+dim(resMRMQuant)
+resMRMQuant %>% select(Modifications) %>% distinct()
+
 tmpLys8Arg10 <- resMRMQuant %>% filter(grepl("Lys8", Modifications) |grepl("Arg10", Modifications) ) 
+
 plotPepFrequencies(tmpLys8Arg10, main="labeled peptide count")
 
 tmpNonLab <- resMRMQuant %>% filter(Modifications=="Unmodified" )
@@ -156,7 +184,7 @@ corExp
 cor <- corExp$V1
 names(cor) <- corExp$Experiment
 par(mar=c(22,4,2,2))
-barplot(cor^2,las=2,ylim=c(0,1), ylab= "R^2")
+plot(cor^2,las=2,ylim=c(0,1), ylab= "R^2",type="l")
 
 ```
 

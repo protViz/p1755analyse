@@ -72,4 +72,10 @@ sqliteLocation <- "../output/"
 dbname <- "paolo_20151029_MSQC1.sqlite3"
 createDB( path , sqliteLocation, dbname )
 
+
+path <- "c:/processing/external/EXTERNAL_1/jennifergarcia_20150923_firstBatchFromCRG/combined/txt"
+sqliteLocation <- "../output/"
+dbname <- "jennifergarcia_20150923_firstBatchFromCRG.sqlite3"
+createDB( path , sqliteLocation, dbname )
+
 ```

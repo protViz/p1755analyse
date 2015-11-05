@@ -17,10 +17,8 @@ library(seqinr)
 ```{r}
 rm(list=ls())
 file = file.path(path.package("pepfdr"),"extdata/fgcz_contaminants_20150123.fasta")
-
 contaminants <- read.fasta(file, as.string = TRUE, seqtype="AA")
-length(contaminants)
-msqc1 <- read.fasta("../data/fastaFiles/msqc1-sequences.fasta", as.string = TRUE, seqtype="AA")
+msqc1 <- readPeptideFasta("../data/fastaFiles/msqc1-sequences.fasta")
 
 toremove <- NULL
 
@@ -37,8 +35,8 @@ contaminantsrev <- reverseSeq(contNoMSQC1)
 msqc1rev <- reverseSeq(msqc1)
 
 
-ecoli <- read.fasta("../data/fastaFiles/uniprot-taxonomy83333.fasta",as.string=TRUE, seqtype="AA")
-human <- read.fasta("../data/fastaFiles/uniprot-taxonomyHomoSapiensHuman9606.fasta",as.string=TRUE, seqtype="AA")
+ecoli <- readPeptideFasta("../data/fastaFiles/uniprot-taxonomy83333.fasta")
+human <- readPeptideFasta("../data/fastaFiles/uniprot-taxonomyHomoSapiensHuman9606.fasta")
 
 length(ecoli)
 length(human)
