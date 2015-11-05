@@ -1,5 +1,5 @@
 ---
-title: "check files"
+title: "Crate annotation table"
 author: "Witold Wolski"
 date: "16 October 2015"
 output: pdf_document
@@ -12,7 +12,6 @@ library(knitr)
 opts_chunk$set(echo=FALSE, message=FALSE, results="hide")
 library(dplyr)
 library(quantable)
-
 
 ```
 
@@ -49,7 +48,7 @@ getdate <- function(str){
 }
 
 rawfile <- dir(path = "c:/processing/external/", pattern="*.raw",recursive = T)
-
+rawfile
 fname<-basename(rawfile)
 dname <-dirname(rawfile)
 
@@ -65,7 +64,6 @@ filetable <-filetable[ord,]
 
 seqnum <- getSeqNum(filetable)
 
-seqnum
 dim(filetable)
 length(seqnum)
 filetable <- cbind(filetable, seqnum= seqnum)
@@ -77,7 +75,7 @@ write.table(file="../output/filemapping2.txt",filetable,row.names = F, quote = F
 # instrument mappings
 
 ```{r}
-mappingInstrument <- c("FGCZ" = "VE" , "CRG" = "VE" , "VIB" = "QE" ,"IMP" = "DIV")
+mappingInstrument <- c("FGCZ" = "VE" , "CRG" = "VE" , "VIB" = "QE" ,"IMP" = "DIV", "MPI" = "VE")
 mappingInstrument<-cbind(site = names(mappingInstrument), instrument= mappingInstrument)
 mappingInstrument
 filemap <- merge(filetable, mappingInstrument)
@@ -98,16 +96,20 @@ siteintstrument <- apply(filemap[,c("site","instrument")],1,paste,collapse="_")
 filemap<-cbind(filemap , displayname = xx, siteinstrument=siteintstrument)
 
 write.table(file="../output/filemappingFinal.txt",filemap,row.names = F, quote = F)
+```
+
+```{r}
 filemap$date <- as.character(filemap$date)
 
 date <- as.Date(filemap$date, "%Y%m%d")
 measurementsMONTH <- as.matrix((table(format(date, "%Y - %m"), filemap$siteinstrument)))
 
-dd <- as.numeric( format(date+3, "%U"))
+weeks <- as.numeric( format(date+3, "%U"))
+length(weeks)
 
-allweeks <- c(range(dd)[1]:range(dd)[2])
+allweeks <- c(range(weeks)[1]:range(weeks)[2])
 sites <- c(rep("THEO", length(allweeks)), as.character(filemap$siteinstrument))
-allweeks <- c(allweeks,dd)
+allweeks <- c(allweeks,weeks)
 
 length(allweeks)
 length(sites)
@@ -115,10 +117,10 @@ length(sites)
 measurementsWeek <- as.matrix( table(allweeks, sites ) )
 
 tmp <- max(measurementsMONTH)
-imageWithLabels(measurementsMONTH, col=getGreensScale(tmp+1), main="months with measurements")
+imageWithLabels(measurementsMONTH, col=getGreensScale(tmp+1), xlab="months")
 tmp <- max(measurementsWeek)
 
-imageWithLabels(measurementsWeek, col=getGreensScale(tmp+1), main="weeks with measurement")
+imageWithLabels(measurementsWeek, col=getGreensScale(tmp+1), xlab="weeks")
 
 
 ```
