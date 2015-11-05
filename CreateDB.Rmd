@@ -1,5 +1,5 @@
 ---
-title: "Create DB"
+title: "Create fasta DB"
 author: "Witold Wolski"
 date: "30 September 2015"
 output: pdf_document
@@ -8,33 +8,45 @@ output: pdf_document
 
 ```{r}
 library(pepfdr)
-library(seqinr)
 
 ```
 
-# create db
+# Create db
+
+## Contaminants and mscqc1 proteins
 
 ```{r}
 rm(list=ls())
 file = file.path(path.package("pepfdr"),"extdata/fgcz_contaminants_20150123.fasta")
-contaminants <- read.fasta(file, as.string = TRUE, seqtype="AA")
+contaminants <- readPeptideFasta(file)
 msqc1 <- readPeptideFasta("../data/fastaFiles/msqc1-sequences.fasta")
+```
 
+remove mscq1 proteins from contaminants, so there are no duplicates.
+
+```{r}
 toremove <- NULL
-
 for(i in 1:length(msqc1)){
   idx <- grep(msqc1[[i]],contaminants)
   toremove<-c(toremove,idx)
-  print(idx)
 }
-
+print(toremove)
+length(contaminants)
 contNoMSQC1 <- contaminants[-toremove]
 length(contNoMSQC1)
+```
 
+## Create Reverse Sequences
+
+```{r}
 contaminantsrev <- reverseSeq(contNoMSQC1)
 msqc1rev <- reverseSeq(msqc1)
+```
 
 
+# Prepare e-coli and human databases
+
+```{r}
 ecoli <- readPeptideFasta("../data/fastaFiles/uniprot-taxonomy83333.fasta")
 human <- readPeptideFasta("../data/fastaFiles/uniprot-taxonomyHomoSapiensHuman9606.fasta")
 
@@ -42,10 +54,11 @@ length(ecoli)
 length(human)
 ecoliRev <- reverseSeq(ecoli)
 humanRev <- reverseSeq(human)
+```
 
-# add human ...
-# ecoli .... 
+# Create new database, with reverse and forward sequences
 
+```{r}
 all_d <-c(msqc1, ecoli, human, contNoMSQC1,  msqc1rev, ecoliRev, humanRev , contaminantsrev)
 length(all_d)/2
 stopifnot(length(all_d)/2 == length(ecoli) + length(human) + length(msqc1) + length(contNoMSQC1))
@@ -55,31 +68,9 @@ all <- c(msqc1, ecoli, human, contNoMSQC1)
 stopifnot(length(all) == length(ecoli) + length(human) + length(msqc1) + length(contNoMSQC1))
 
 writeFasta(all, file="../data/fastaFiles/output/p1755_db1_20151016_msqc1ecolihuman.fasta")
-write.fasta(contaminantsrev, names(contaminantsrev), file='test.fasta',as.string=TRUE, nbchar = 60 )
-
 
 ```
 
-# Site (not more than 4)
-VE - Velos
-QE - Q-exactive
-HF - HF
-FU - Fusion
-QT - q Trap
-
-# + optional sequential instrument number + 
-
-
-VE1 - Velos
-VIB_200151129_1_VE
-<institute>_<date>_<seqnumber>_<instrument>
-
-
-VIB - Gent
-FGCZ - Zurich
-IMP - Vienna
-CRG - Barcelona
-MPI - Dresden
 
 
 
