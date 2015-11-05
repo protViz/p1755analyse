@@ -31,19 +31,23 @@ opts_chunk$set(echo=FALSE, results="hide")
 
 rm(list=ls())
 library(quantable)
+
+
 targets<-read.csv( "../data/mrmData/msqc1-table2.csv" , stringsAsFactors = FALSE )
 head(targets)
 sp <- targets[,1]
-strsplit(sp,split = "\\(|\\)")
+
 mrm <- split2table(sp,split = "\\(|\\)")
 mrm[,1] <- gsub("^\\s+|\\s+$", "", mrm[,1])
-head(mrm)
-head(targets)
 mrm = data.frame( mrm , targets[,2:ncol(targets)])
-colnames( mrm )[1:7] <- c("Protein Name", "uniprotID","Peptide","monoMass","z","Q1.mz","Q3.mz")
 
+colnames( mrm )[1:7] <- c("Protein Name", "uniprotID","Peptide","monoMass","z","Q1.mz","Q3.mz")
 write.table(mrm , file="../data/mrmData/transitionsFixed.tab" , sep="\t" , row.names = FALSE , quote = FALSE )
+head(mrm)
+
 protidS<- as.character(unique(mrm$uniprotID))
+
+
 
 mrm[protidS[1] == mrm$uniprotID,]
 mrm <- tbl_df(mrm)

@@ -19,7 +19,7 @@ rm(list=ls())
 suppressMessages(library(dplyr))
 #path <- "output/20150930/combined/txt/"
 
-createDB <- function( path2MQ , sqliteLocation = NULL , sqlname=NULL){
+createSQLiteDB <- function( path2MQ , sqliteLocation = NULL , sqlname=NULL){
   if(is.null(sqliteLocation)){
     sqliteLocation = path2MQ
   }

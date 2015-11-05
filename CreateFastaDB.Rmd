@@ -8,7 +8,7 @@ output: pdf_document
 
 ```{r}
 library(pepfdr)
-
+library(p1755)
 ```
 
 # Create db
@@ -17,29 +17,15 @@ library(pepfdr)
 
 ```{r}
 rm(list=ls())
-file = file.path(path.package("pepfdr"),"extdata/fgcz_contaminants_20150123.fasta")
-contaminants <- readPeptideFasta(file)
-msqc1 <- readPeptideFasta("../data/fastaFiles/msqc1-sequences.fasta")
-```
+contaminants <- loadContaminantsNoMSQC1Fasta()
+msqc1 <- loadMSQC1Fasta()
 
-remove mscq1 proteins from contaminants, so there are no duplicates.
-
-```{r}
-toremove <- NULL
-for(i in 1:length(msqc1)){
-  idx <- grep(msqc1[[i]],contaminants)
-  toremove<-c(toremove,idx)
-}
-print(toremove)
-length(contaminants)
-contNoMSQC1 <- contaminants[-toremove]
-length(contNoMSQC1)
 ```
 
 ## Create Reverse Sequences
 
 ```{r}
-contaminantsrev <- reverseSeq(contNoMSQC1)
+contaminantsrev <- reverseSeq(contaminants)
 msqc1rev <- reverseSeq(msqc1)
 ```
 
@@ -59,13 +45,13 @@ humanRev <- reverseSeq(human)
 # Create new database, with reverse and forward sequences
 
 ```{r}
-all_d <-c(msqc1, ecoli, human, contNoMSQC1,  msqc1rev, ecoliRev, humanRev , contaminantsrev)
+all_d <-c(msqc1, ecoli, human, contaminants,  msqc1rev, ecoliRev, humanRev , contaminantsrev)
 length(all_d)/2
-stopifnot(length(all_d)/2 == length(ecoli) + length(human) + length(msqc1) + length(contNoMSQC1))
+stopifnot(length(all_d)/2 == length(ecoli) + length(human) + length(msqc1) + length(contaminants))
 writeFasta(all_d, file="../data/fastaFiles/output/p1755_db1_d_20151016_msqc1ecolihuman.fasta")
 
-all <- c(msqc1, ecoli, human, contNoMSQC1)
-stopifnot(length(all) == length(ecoli) + length(human) + length(msqc1) + length(contNoMSQC1))
+all <- c(msqc1, ecoli, human, contaminants)
+stopifnot(length(all) == length(ecoli) + length(human) + length(msqc1) + length(contaminants))
 
 writeFasta(all, file="../data/fastaFiles/output/p1755_db1_20151016_msqc1ecolihuman.fasta")
 
