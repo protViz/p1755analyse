@@ -22,49 +22,42 @@ library(knitr)
 library(reshape2)
 library(quantable)
 library(scales)
-
+library(p1755)
 opts_chunk$set(echo=FALSE, results="hide")
 
 ```
 
+
+
+
 ```{r,echo=FALSE, results="hide", message=FALSE}
 
 rm(list=ls())
-library(quantable)
 
-
-targets<-read.csv( "../data/mrmData/msqc1-table2.csv" , stringsAsFactors = FALSE )
-head(targets)
-sp <- targets[,1]
-
-mrm <- split2table(sp,split = "\\(|\\)")
-mrm[,1] <- gsub("^\\s+|\\s+$", "", mrm[,1])
-mrm = data.frame( mrm , targets[,2:ncol(targets)])
-
-colnames( mrm )[1:7] <- c("Protein Name", "uniprotID","Peptide","monoMass","z","Q1.mz","Q3.mz")
-write.table(mrm , file="../data/mrmData/transitionsFixed.tab" , sep="\t" , row.names = FALSE , quote = FALSE )
-head(mrm)
-
+mrm <- p1755::loadMSQC1Transitions()
 protidS<- as.character(unique(mrm$uniprotID))
-
-
-
-mrm[protidS[1] == mrm$uniprotID,]
 mrm <- tbl_df(mrm)
 mrm %>% group_by(Peptide, `Protein Name`) %>% summarise(pepcount = n())
-
 peptidesMRM <-mrm %>% select(Peptide, uniprotID, `Protein Name`) %>% distinct %>% filter(!grepl("\\[" ,Peptide ) ) %>% arrange(Peptide)
-theoryRatios <- read.table("theoryRatios.txt",sep=" ")
+theoryRatios <-  p1755::loadTheoryHLRatios()
 
+```
 
+# Dump maxquant txt files into sqlite database
+
+```{r}
+path <- "c:/processing/external/EXTERNAL_0/paolo_20151029_MSQC1/combined/txt"
+sqliteLocation <- "../output/"
+dbname <- "paolo_20151029_MSQC1.sqlite3"
+p1755::createSQLiteDB( path , sqliteLocation, dbname )
+dbpath= file.path(sqliteLocation,dbname) 
 ```
 
 # Peptide Evidence
 
 ```{r}
 
-path <- "../output/jennifergarcia_20150923_firstBatchFromCRG.sqlite3"
-my_mqdb <- src_sqlite(path)
+my_mqdb <- src_sqlite(dbpath)
 
 dbListTables( my_mqdb$con )
 

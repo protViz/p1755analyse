@@ -94,18 +94,22 @@ xx <- apply(filemap[,c("site","date","seqnum","instrument")], 1, paste,collapse 
 siteintstrument <- apply(filemap[,c("site","instrument")],1,paste,collapse="_")
 
 filemap<-cbind(filemap , displayname = xx, siteinstrument=siteintstrument)
-
-write.table(file="../output/filemappingFinal.txt",filemap,row.names = F, quote = F)
+filemap
 ```
 
 ```{r}
 filemap$date <- as.character(filemap$date)
 
 date <- as.Date(filemap$date, "%Y%m%d")
-measurementsMONTH <- as.matrix((table(format(date, "%Y - %m"), filemap$siteinstrument)))
+monthdate <- format(date, "%Y-%m")
+length(monthdate)
+measurementsMONTH <- as.matrix((table(monthdate, filemap$siteinstrument)))
 
 weeks <- as.numeric( format(date+3, "%U"))
 length(weeks)
+
+
+write.table(file="../output/filemappingFinal.txt",data.frame(filemap,monthdate=monthdate, week = weeks),row.names = F, quote = F, sep="\t")
 
 allweeks <- c(range(weeks)[1]:range(weeks)[2])
 sites <- c(rep("THEO", length(allweeks)), as.character(filemap$siteinstrument))
