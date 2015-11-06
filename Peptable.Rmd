@@ -31,16 +31,15 @@ opts_chunk$set(echo=FALSE, results="hide")
 
 
 ```{r,echo=FALSE, results="hide", message=FALSE}
-
 rm(list=ls())
-
 mrm <- p1755::loadMSQC1Transitions()
 protidS<- as.character(unique(mrm$uniprotID))
 mrm <- tbl_df(mrm)
 mrm %>% group_by(Peptide, `Protein Name`) %>% summarise(pepcount = n())
 peptidesMRM <-mrm %>% select(Peptide, uniprotID, `Protein Name`) %>% distinct %>% filter(!grepl("\\[" ,Peptide ) ) %>% arrange(Peptide)
+peptidesMRM
 theoryRatios <-  p1755::loadTheoryHLRatios()
-
+theoryRatios
 ```
 
 # Dump maxquant txt files into sqlite database
@@ -49,34 +48,61 @@ theoryRatios <-  p1755::loadTheoryHLRatios()
 path <- "c:/processing/external/EXTERNAL_0/paolo_20151029_MSQC1/combined/txt"
 sqliteLocation <- "../output/"
 dbname <- "paolo_20151029_MSQC1.sqlite3"
-p1755::createSQLiteDB( path , sqliteLocation, dbname )
+#p1755::createSQLiteDB( path , sqliteLocation, dbname )
 dbpath= file.path(sqliteLocation,dbname) 
 ```
+
+# Take a look at the summary table
+
+```{r}
+annotations <- tbl_df(read.table("../output/filemappingFinal.txt",header=TRUE,sep="\t"))
+annotations %>% colnames
+annotations$filename
+annotations <- annotations %>% select(filename,displayname,siteinstrument,monthdate,week)
+annotations$filename <- gsub(".raw","", annotations$filename)
+annotations %>% glimpse
+
+```
+
+
+```{r, fig.height=8, fig.width=8}
+
+my_mqdb <- src_sqlite(dbpath)
+summary_tbl <- tbl(my_mqdb, "summary")
+summary_tbl %>% glimpse
+summary_tbl <- summary_tbl %>% select(Raw.file ,MS, MS.MS, MS.MS.Submitted, MS.MS.Identified,Peptide.Sequences.Identified )
+
+summary_tbl2 <- inner_join(summary_tbl, annotations, by=c("Raw.file" = "filename"),copy=TRUE)
+summary_tbl<- summary_tbl2 %>% collect
+summary_tbl %>% glimpse
+
+dd<-t(summary_tbl[,2:6])
+class(dd)<-"numeric"
+colnames(dd)<-summary_tbl$displayname  
+colnames(dd)<-summary_tbl$week
+as.matrix(dd)
+
+ddx <- t(as.matrix(dd))
+ddl <- melt(t(as.matrix(dd)))
+colnames(ddl)<-c("week","type","nr")
+library(lattice)
+xyplot( nr ~ week, group =  type ,data=ddl,type="b",layout=c(1,1),
+        scales = list(y = list(log = 10, equispaced.log = FALSE),x = list(cex=1,at=min(ddl$week):max(ddl$week)))
+        ,auto.key = TRUE)
+
+```
+
 
 # Peptide Evidence
 
 ```{r}
-
-my_mqdb <- src_sqlite(dbpath)
-
 dbListTables( my_mqdb$con )
 
-peptides_tbl <- tbl(my_mqdb, "peptides" )
 evidence_tbl <- tbl(my_mqdb, "evidence")
-proteins_tbl <- tbl(my_mqdb, "proteinGroups")
-dim(evidence_tbl)
 
 colnames(evidence_tbl)
 evidence_tbl %>% select(Raw.file) %>% glimpse
 
-annotations <- tbl_df(read.table("../output/filemappingFinal.txt",header=TRUE))
-annotations$filename
-
-
-annotations <- annotations %>% select(filename,displayname)
-annotations$filename <- gsub(".raw","", annotations$filename)
-
-annotations %>% glimpse
 
 
 evidence_tbl2 <- inner_join(evidence_tbl, annotations, by=c("Raw.file" = "filename"),copy=TRUE)
@@ -84,7 +110,34 @@ evidence_tbl <- evidence_tbl2 %>% collect
 evidence_tbl <- evidence_tbl %>% rename(Experiment = displayname)
 evidence_tbl %>% dim
 evidence_tbl %>% glimpse
+```
 
+# Looking at measurement error
+
+```{r}
+
+evError <- evidence_tbl %>% select(Mass.Error..Da., Mass.Error..ppm., Experiment, week)
+head(evError)
+meanmasserror<-aggregate(Mass.Error..ppm.  ~ Experiment + week, data=evError,FUN=function(x){mean(abs(x))})
+
+xyplot(Mass.Error..ppm. ~ week, data=meanmasserror ,type="b", ylab="mean(abs(Delta ppm))",
+       scales=list(x = list(cex=1,at=min(ddl$week):max(ddl$week))))
+
+```
+
+
+```{r,fig.width=10, fig.height=10}
+
+head(evError)
+
+histogram( ~Mass.Error..ppm. | Experiment + week , data=evError, type="density")
+
+```
+
+# Looking at fold changes
+
+
+```{r}
 evidence <- evidence_tbl  %>% select(Experiment, Modifications, Sequence, Modified.sequence, contains("Intensity"), m.z,Charge, Calibrated.retention.time) 
 evidence %>% select(Modifications) %>% distinct()
 
