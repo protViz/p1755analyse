@@ -3,7 +3,6 @@ title: "Analysing MaxQuant Output with R"
 author: "Witold Wolski"
 date: "30 September 2015"
 output: pdf_document
-#output: ioslides_presentation
 toc: yes
 ---
 
@@ -40,6 +39,7 @@ peptidesMRM <-mrm %>% select(Peptide, uniprotID, `Protein Name`) %>% distinct %>
 peptidesMRM
 theoryRatios <-  p1755::loadTheoryHLRatios()
 theoryRatios
+
 ```
 
 # Dump maxquant txt files into sqlite database
@@ -50,6 +50,7 @@ sqliteLocation <- "../output/"
 dbname <- "paolo_20151029_MSQC1.sqlite3"
 #p1755::createSQLiteDB( path , sqliteLocation, dbname )
 dbpath= file.path(sqliteLocation,dbname) 
+
 ```
 
 # Take a look at the summary table
@@ -66,17 +67,16 @@ annotations %>% glimpse
 
 
 ```{r, fig.height=8, fig.width=8}
-
 my_mqdb <- src_sqlite(dbpath)
 summary_tbl <- tbl(my_mqdb, "summary")
 summary_tbl %>% glimpse
 summary_tbl <- summary_tbl %>% select(Raw.file ,MS, MS.MS, MS.MS.Submitted, MS.MS.Identified,Peptide.Sequences.Identified )
 
 summary_tbl2 <- inner_join(summary_tbl, annotations, by=c("Raw.file" = "filename"),copy=TRUE)
-summary_tbl<- summary_tbl2 %>% collect
+summary_tbl <- summary_tbl2 %>% collect
 summary_tbl %>% glimpse
 
-dd<-t(summary_tbl[,2:6])
+dd <- t(summary_tbl[,2:6])
 class(dd)<-"numeric"
 colnames(dd)<-summary_tbl$displayname  
 colnames(dd)<-summary_tbl$week
@@ -110,6 +110,7 @@ evidence_tbl <- evidence_tbl2 %>% collect
 evidence_tbl <- evidence_tbl %>% rename(Experiment = displayname)
 evidence_tbl %>% dim
 evidence_tbl %>% glimpse
+
 ```
 
 # Looking at measurement error
@@ -121,7 +122,7 @@ head(evError)
 meanmasserror<-aggregate(Mass.Error..ppm.  ~ Experiment + week, data=evError,FUN=function(x){mean(abs(x))})
 
 xyplot(Mass.Error..ppm. ~ week, data=meanmasserror ,type="b", ylab="mean(abs(Delta ppm))",
-       scales=list(x = list(cex=1,at=min(ddl$week):max(ddl$week))))
+       scales=list(x = list(cex=1,at=min(ddl$week):max(ddl$week))),ylim=c(0,5),auto.key = TRUE)
 
 ```
 
@@ -129,65 +130,135 @@ xyplot(Mass.Error..ppm. ~ week, data=meanmasserror ,type="b", ylab="mean(abs(Del
 ```{r,fig.width=10, fig.height=10}
 
 head(evError)
-
 histogram( ~Mass.Error..ppm. | Experiment + week , data=evError, type="density")
 
 ```
 
-# Looking at fold changes
+## Looking at peptide counts
 
 
 ```{r}
-evidence <- evidence_tbl  %>% select(Experiment, Modifications, Sequence, Modified.sequence, contains("Intensity"), m.z,Charge, Calibrated.retention.time) 
+evidence <- evidence_tbl  %>% select(Experiment, Modifications, Sequence, Modified.sequence, contains("Intensity"), m.z,Charge, Calibrated.retention.time, week) 
 evidence %>% select(Modifications) %>% distinct()
 
 ```
 
 
 ```{r}
+peptidesMRM %>% glimpse()
 resMRMQuant <- inner_join(peptidesMRM,evidence, by=c("Peptide"="Sequence"), copy=TRUE)
+resMRMQuant %>% select(Peptide, Experiment)
+
 plotPepFrequencies <- function(table, main="peptide count"){
-  rd <- table %>% group_by(Peptide,Experiment) %>% summarise(pepcount = n())  %>% arrange(Experiment)
+  rd <- table %>% group_by(Peptide,Experiment,week) %>% summarise(pepcount = n())  %>% arrange(Experiment)
   colsGreen <- brewer_pal(palette = "Greens")(5)
   tmp <- acast(rd , Peptide ~ Experiment, value.var='pepcount' )
-  
   ygreen <- gradient_n_pal(colsGreen)(seq(0, 1, length.out = (max(tmp, na.rm = TRUE))))
   imageWithLabels(t(tmp), marLeft = c(6,8,3,1), marRight = c(1,2,3,1),col=ygreen, main=main)
-
-  tmp
+  rd
 }
-
-dd <- plotPepFrequencies(resMRMQuant, main="all peptide count")
-dev.off()
-
-par(mar=c(10,3,2,2))
-matplot(t(dd),type="l",axes=T)
-axis(1,at=1:ncol(dd),labels=colnames(dd),las=2,cex=0.7)
+rd <- plotPepFrequencies(resMRMQuant, main="all peptide count")
+xyplot(pepcount ~   week | Peptide ,  data = rd,type="b", layout=c(3,5),main="all peptide count")
 
 ```
 
 
 
 ```{r}
-
 dim(resMRMQuant)
 resMRMQuant %>% select(Modifications) %>% distinct()
 
 tmpLys8Arg10 <- resMRMQuant %>% filter(grepl("Lys8", Modifications) |grepl("Arg10", Modifications) ) 
-
-plotPepFrequencies(tmpLys8Arg10, main="labeled peptide count")
+rd2 <- plotPepFrequencies(tmpLys8Arg10, main="labeled peptide count")
 
 tmpNonLab <- resMRMQuant %>% filter(Modifications=="Unmodified" )
-plotPepFrequencies(tmpNonLab , main="not labeled peptide count")
+rd3 <- plotPepFrequencies(tmpNonLab , main="not labeled peptide count")
+```
 
-lys8AggArg10 <- tmpLys8Arg10 %>% group_by(Peptide, uniprotID, Charge, Experiment, Modified.sequence) %>% summarise(IntensityN = sum(Intensity, na.rm =TRUE))
+```{r, fig.width=8, fig.height=10}
+head(rd2)
+head(rd3)
+xx <- cbind("all",rd)
+head(xx)
+
+rdd <- rbind(cbind(type = "all",rd),cbind(type = "H",rd2),cbind(type = "L",rd3))
+dim(rdd)
+
+xyplot(pepcount ~ week | Peptide ,  data = rdd, group=type, type="b", layout=c(2,7), pch=c(1,2,3), lty=c(1,2,3), main="all peptide count", par.settings = list(superpose.symbol = list(pch = 1:3)), auto.key = TRUE,scales=list(x = list(cex=1,at=min(rdd$week):max(rdd$week))))
+
+
+```
+
+# Look at Intensities (by species)
+
+```{r}
+specProt <-evidence_tbl %>% select(Protein= Leading.razor.protein,Intensity, Experiment, week ) 
+library(quantable)
+head(specProt)
+
+tmp<-strsplit(specProt$Protein, split="\\|")
+
+dd <- sapply(tmp,length)
+table(dd)
+
+specProt$Protein[which(dd==1)]
+specProt$Protein[which(dd==2)]
+specProt$Protein[which(dd==3)]
+
+detcategory <- function(x){ 
+  unkown <- "unknown"
+  if(length(x) == 1){
+    return(unkown)
+  }else if(length(x)==2){
+    
+      return("CONT")
+  }else if(length(x) == 3){
+    val <- x[[3]]
+      if(grepl("ECOLI",val)){
+        return("ECOLI")
+      }else if(grepl("HUMAN$", val)) {
+        return("HUMAN")
+      }else if(grepl("HUMAN_MSQC1$",val)){
+        return("MSQC1")
+      }else{
+        return(unkown)
+      }
+  }else{
+    return(unkown)
+  }
+}
+
+category <- sapply(tmp, detcategory )
+table(category)
+specProt <- data.frame(specProt, category)
+```
+
+```{r, fig.width=10, fig.height=10}
+
+bwplot( Intensity ~ category |  Experiment + week ,  data=specProt,scales=list(x=list(rot=45),y=list(log=10)))
+
+```
+
+```{r, fig.width=10, fig.height=10}
+res <-aggregate(Intensity ~ category + Experiment + week, data=specProt, FUN=sum)
+head(res)
+xyplot(Intensity ~ week, group=category, data= res,auto.key = TRUE, type="b",scales=list(x=list(rot=45),y=list(log=10)))
+
+```
+
+
+# Looking at Intensities
+
+
+```{r}
+lys8AggArg10 <- tmpLys8Arg10 %>% group_by(Peptide, uniprotID, Charge, Experiment, week) %>% summarise(IntensityN = sum(Intensity, na.rm =TRUE))
 lys8AggArg10 %>% glimpse
 
-nonLAgg <- tmpNonLab %>% group_by(Peptide,uniprotID,Charge,Experiment,Modified.sequence) %>% summarise(IntensityN = sum(Intensity, na.rm =TRUE))
+nonLAgg <- tmpNonLab %>% group_by(Peptide,uniprotID,Charge,Experiment,week) %>% summarise(IntensityN = sum(Intensity, na.rm =TRUE))
 nonLAgg %>% glimpse
 
 resLys8Arg10None <- inner_join(lys8AggArg10, nonLAgg,by=c("Peptide"="Peptide", "Experiment" = "Experiment",
-                                         "Charge" = "Charge", "uniprotID"  = "uniprotID"))
+                                         "Charge" = "Charge", "uniprotID"  = "uniprotID", "week"="week"))
 
 for( i in which(lapply(resLys8Arg10None, class) == "character")){
   resLys8Arg10None[[i]] <- as.factor(resLys8Arg10None[[i]])
@@ -198,14 +269,17 @@ for( i in which(lapply(resLys8Arg10None, class) == "character")){
 ```{r,fig.width=12, fig.height=12}
 
 library(lattice)
-xyplot(IntensityN.y  ~ Experiment | Peptide + Charge  , data= resLys8Arg10None , scales=list(x=list(rot=45),y=list(log=10))) 
-xyplot(IntensityN.x  ~ Experiment | Peptide + Charge , data= resLys8Arg10None , scales=list(x=list(rot=45), y=list(log=10))) 
-xyplot(log2(IntensityN.x/IntensityN.y)  ~ Experiment | Peptide + Charge , data= resLys8Arg10None , scales=list(x=list(rot=45))) 
+xyplot(IntensityN.y  ~ week | Peptide + Charge  , data= resLys8Arg10None , scales=list(x=list(rot=45),y=list(log=10))) 
+xyplot(IntensityN.x  ~ week | Peptide + Charge , data= resLys8Arg10None , scales=list(x=list(rot=45), y=list(log=10))) 
+xyplot(log2(IntensityN.x/IntensityN.y)  ~ week | Peptide + Charge , data= resLys8Arg10None , scales=list(x=list(rot=45))) 
 
 ```
 
 ```{r,fig.height=10, fig.width=10}
+resLys8Arg10None %>% glimpse()
+
 resLys8Arg10None %>% select(Experiment) %>% distinct
+
 theoryRatios <- read.table("theoryRatios.txt",sep=" ")
 theoryRatios[,1] <- gsub("\\[|\\]","",theoryRatios[,1])
 theoryRatios[,4] <- log2(theoryRatios[,3])
