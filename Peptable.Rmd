@@ -22,7 +22,6 @@ library(quantable)
 library(scales)
 library(p1755)
 opts_chunk$set(echo=FALSE, results="hide")
-
 ```
 
 
