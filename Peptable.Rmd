@@ -1,6 +1,6 @@
 ---
 title: "Analysing MaxQuant Output with R"
-author: "Witold Wolski"
+author: "FGC Zurich"
 date: "30 September 2015"
 output: pdf_document
 toc: yes
@@ -22,27 +22,28 @@ library(quantable)
 library(scales)
 library(p1755)
 opts_chunk$set(echo=FALSE, results="hide")
+
 ```
 
 
 ```{r}
+
 if(FALSE){
   path <- "c:/processing/external/EXTERNAL_0/paolo_20151029_MSQC1/combined/txt"
   dbname <- "paolo_20151029_MSQC1.sqlite3"
-} else if(FALSE){
+} else if(TRUE){
   path <- "c:/processing/external/EXTERNAL_1/jennifergarcia_20150923_firstBatchFromCRG/combined/txt"
   dbname <- "jennifergarcia_20150923_firstBatchFromCRG.sqlite3"
-} else if(TRUE){
+} else if(FALSE){
   path <- "c:/processing/external/EXTERNAL_2/evytimmerman_20150929/combined/txt"
   dbname <- "evytimmerman_20150929.sqlite3"
-} else if(TRUE){
+} else if(FALSE){
   path <- "c:/processing/external/EXTERNAL_3/ashevche_20151030_MSQC1/combined/txt"
   dbname <- "ashevche_20151030_MSQC1.sqlite3"
 } else if(FALSE){
-  path <- "c:/processing/external/EXTERNAL_4/mechtler_20150609_Qex4/combined/txt/"
+    path <- "c:/processing/external/EXTERNAL_4/mechtler_20151029_QE5_B/combined/txt/"
   dbname <- "mechtler_20150609_Qex4"
 }
-
 
 sqliteLocation <- "../output/"
 p1755::createSQLiteDB( path , sqliteLocation, dbname )
@@ -50,22 +51,14 @@ dbpath = file.path(sqliteLocation,dbname)
 
 ```
 
-# Analysed Dataset is `r dbname`
 
-```{r,echo=FALSE, results="hide", message=FALSE}
-mrm <- p1755::loadMSQC1Transitions()
-protidS <- as.character(unique(mrm$uniprotID))
+```{r , echo=FALSE, results="hide", message=FALSE }
+mrm <- p1755::loadMSQC1Transitions( )
+protidS <- as.character( unique(mrm$uniprotID) )
 mrm <- tbl_df(mrm)
 mrm %>% group_by(Peptide, `Protein Name`) %>% summarise(pepcount = n())
 peptidesMRM <-mrm %>% select(Peptide, uniprotID, `Protein Name`) %>% distinct %>% filter(!grepl("\\[" ,Peptide ) ) %>% arrange(Peptide)
-theoryRatios <-  p1755::loadTheoryHLRatios()
-
-```
-
-# Number of spectra, spectra peptide matches, and unique peptides
-
-```{r}
-
+theoryRatios <-  p1755::loadTheoryHLRatios()  
 annotations <- tbl_df(read.table("../output/filemappingFinal.txt",header=TRUE,sep="\t"))
 annotations %>% colnames
 annotations$filename
@@ -76,15 +69,16 @@ annotations %>% glimpse
 ```
 
 
-```{r, fig.height=8, fig.width=8}
+```{r}
+
 my_mqdb <- src_sqlite(dbpath)
 summary_tbl <- tbl(my_mqdb, "summary")
-summary_tbl %>% glimpse
 summary_tbl <- summary_tbl %>% select(Raw.file ,MS, MS.MS, MS.MS.Submitted, MS.MS.Identified,Peptide.Sequences.Identified )
 
 summary_tbl2 <- inner_join(summary_tbl, annotations, by=c("Raw.file" = "filename"),copy=TRUE)
 summary_tbl <- summary_tbl2 %>% collect
 summary_tbl %>% glimpse
+unique(summary_tbl$siteinstrument)
 
 dd <- t(summary_tbl[,2:6])
 class(dd)<-"numeric"
@@ -96,6 +90,12 @@ ddx <- t(as.matrix(dd))
 ddl <- melt(t(as.matrix(dd)))
 colnames(ddl)<-c("week","type","nr")
 library(lattice)
+
+```
+
+# Analysed Dataset is `r unique(summary_tbl$siteinstrument)`
+
+```{r, fig.height=8, fig.width=8}
 xyplot( nr ~ week, group =  type ,data=ddl,type="b",layout=c(1,1),
         scales = list(y = list(log = 10, equispaced.log = FALSE),x = list(cex=1,at=min(ddl$week):max(ddl$week)))
         ,auto.key = TRUE)
@@ -128,7 +128,7 @@ evError <- evidence_tbl %>% select(Mass.Error..Da., Mass.Error..ppm., Experiment
 meanmasserror<-aggregate(Mass.Error..ppm.  ~ Experiment + week, data=evError,FUN=function(x){mean(abs(x))})
 
 xyplot(Mass.Error..ppm. ~ week, data=meanmasserror ,type="b", ylab="mean(abs(Delta ppm))",
-       scales=list(x = list(cex=1,at=min(ddl$week):max(ddl$week))),ylim=c(0,5),auto.key = TRUE)
+       scales=list(x = list(rot=90,cex=1,at=min(ddl$week):max(ddl$week))),ylim=c(0,5),auto.key = TRUE)
 
 ```
 
@@ -142,7 +142,6 @@ histogram( ~Mass.Error..ppm. | Experiment + week , data=evError, type="density")
 # Looking at MSQC 1 peptide counts
 
 ```{r}
-
 evidence <- evidence_tbl  %>% select(Experiment, Modifications, Sequence, Modified.sequence, contains("Intensity"), m.z,Charge, Calibrated.retention.time, week) 
 evidence %>% select(Modifications) %>% distinct()
 
@@ -185,15 +184,13 @@ rd3 <- plotPepFrequencies(tmpNonLab , main="not labeled peptide count")
 
 ```{r, fig.width=8, fig.height=10}
 
-head(rd2)
-head(rd3)
 xx <- cbind("all",rd)
-head(xx)
 
 rdd <- rbind(cbind(type = "all",rd),cbind(type = "H",rd2),cbind(type = "L",rd3))
 dim(rdd)
 
-xyplot(pepcount ~ week | Peptide ,  data = rdd, group=type, type="b", layout=c(2,7), pch=c(1,2,3), lty=c(1,2,3), main="all peptide count", par.settings = list(superpose.symbol = list(pch = 1:3)), auto.key = TRUE,scales=list(x = list(cex=0.8,at=min(rdd$week):max(rdd$week),rot=90)))
+xyplot(pepcount ~ week | Peptide ,  data = rdd, group=type, type="b", layout=c(2,7), pch=c(1,2,3), lty=c(1,2,3),
+       main="all peptide count", par.settings = list(superpose.symbol = list(pch = 1:3)), auto.key = TRUE,scales=list(x = list(cex=0.8,at=min(rdd$week):max(rdd$week),rot=90)), ylim=c(0,100))
 
 ```
 
@@ -210,9 +207,6 @@ tmp<-strsplit(specProt$Protein, split="\\|")
 dd <- sapply(tmp,length)
 table(dd)
 
-specProt$Protein[which(dd==1)]
-specProt$Protein[which(dd==2)]
-specProt$Protein[which(dd==3)]
 
 detcategory <- function(x){ 
   unkown <- "other"
@@ -246,10 +240,15 @@ bwplot( Intensity ~ category |  Experiment + week ,  data=specProt,scales=list(x
 ```
 
 ```{r, fig.width=10, fig.height=10}
-res <-aggregate(Intensity ~ category + Experiment + week, data=specProt, FUN=sum)
-head(res)
-xyplot(Intensity ~ week, group=category, data= res,auto.key = TRUE, type="b",scales=list(x=list(rot=45),y=list(log=10)))
+head(specProt[specProt$category == "MSQC1",])
 
+
+res <- aggregate(Intensity ~ category + Experiment + week, data=specProt, FUN=function(x){sum(as.numeric(x),na.rm=TRUE)})
+
+xyplot(Intensity ~ week,
+       group=category, data= res,auto.key = TRUE,
+       type="b",scales=list(x=list(rot=45),y=list(log=10))
+       )
 ```
 
 
@@ -289,11 +288,11 @@ theoryRatios <- read.table("theoryRatios.txt",sep=" ")
 theoryRatios[,1] <- gsub("\\[|\\]","",theoryRatios[,1])
 theoryRatios[,4] <- log2(theoryRatios[,3])
 theoryRatios
-colnames(theoryRatios) <- c("Pepsequence", "concentration", "foldchange" , "log2fc")
+colnames(theoryRatios) <- c("Pepsequence", "concentration", "logfoldchange" , "log2fc")
 theoryRatios<-theoryRatios[order(theoryRatios$Pepsequence),]
 ```
 
-# Fold change
+# Log fold change
 
 ```{r,fig.width=8, fig.height=10}
 idx <- order(unique(resLys8Arg10None$Peptide))
