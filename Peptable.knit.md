@@ -24,8 +24,6 @@ toc: yes
 
 
 
-# Analysed Dataset is FGCZ_VE
-
 
 
 
