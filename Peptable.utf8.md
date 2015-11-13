@@ -1,6 +1,6 @@
 ---
 title: "Analysing MaxQuant Output with R"
-author: "FGC Zurich"
+author: "FGCZ"
 date: "30 September 2015"
 output: pdf_document
 toc: yes
@@ -84,7 +84,8 @@ toc: yes
 
 
 ```
-## Warning in inner_join_impl(x, y, by$x, by$y): joining factors with different levels, coercing to character vector
+## Warning in inner_join_impl(x, y, by$x, by$y): joining factors with
+## different levels, coercing to character vector
 ```
 
 ![](Peptide_Vienna_files/figure-latex/unnamed-chunk-16-1.pdf) 

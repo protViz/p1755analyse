@@ -1,6 +1,7 @@
 ---
 title: "Analysing MaxQuant Output with R"
-author: "FGC Zurich"
+author: Witold Wolski
+
 date: "30 September 2015"
 output: pdf_document
 toc: yes
@@ -32,8 +33,11 @@ theoryRatios <-  p1755::loadTheoryHLRatios()
 
 ```{r a}
 if(!exists("path")){
-  path <- "c:/processing/external/EXTERNAL_4/mechtler_20150603_Velos1/combined/txt/"
-  dbname <- "mechtler_20150603_Velos1.sqlite3"
+  #path <- "c:/processing/external/EXTERNAL_4/mechtler_20150603_Velos1/combined/txt/"
+  #dbname <- "mechtler_20150603_Velos1.sqlite3"
+  path <- "c:/processing/external/EXTERNAL_3/ashevche_20151030_MSQC1/combined/txt"
+  dbname <- "ashevche_20151030_MSQC1.sqlite3"
+
   #path <- "c:/processing/external/EXTERNAL_4/mechtler_20151029_QE5_B/combined/txt/"
   #dbname <- "mechtler_20150609_Qex4"
   #path <- "c:/processing/external/EXTERNAL_0/paolo_20151029_MSQC1/combined/txt"
@@ -48,7 +52,6 @@ dbpath = file.path(sqliteLocation,dbname)
 
 
 ```{r b, echo=FALSE, results="hide", message=FALSE }
-
 mrm <- p1755::loadMSQC1Transitions()
 protidS <- as.character( unique(mrm$uniprotID) )
 mrm <- tbl_df(mrm)
@@ -90,7 +93,7 @@ colnames(ddl)<-c("week","type","nr")
 # Analysed Dataset is `r unique(summary_tbl$siteinstrument)`
 
 
-```{r test, fig.height=7, fig.width=7}
+```{r test, fig.height=6, fig.width=6}
 library(lattice)
 
 xyplot( nr ~ week, group =  type ,data=ddl,type="b",layout=c(1,1),
@@ -117,7 +120,7 @@ evidence_tbl %>% glimpse
 
 # Looking at measurement error
 
-```{r}
+```{r, fig.width=6, fig.height=6}
 evError <- evidence_tbl %>% select(Mass.Error..Da., Mass.Error..ppm., Experiment, week)
 
 meanmasserror<-aggregate(Mass.Error..ppm.  ~ Experiment + week, data=evError,FUN=mean)
@@ -190,7 +193,6 @@ rd3 <- plotPepFrequencies(tmpNonLab , main="not labeled peptide count")
 
 ```{r, fig.width=8, fig.height=10}
 rdd <- rbind(cbind(type = "H+L",rd),cbind(type = "H",rd2),cbind(type = "L",rd3))
-dim(rdd)
 
 skip<-! theoryRatios$Pepsequence %in% unique(rdd$Peptide)
 
@@ -219,16 +221,18 @@ detcategory <- function(x){
     return("CONT")
   }else if(length(x) == 3){
     val <- x[[3]]
-    if(grepl("ECOLI",val)){
+    if(grepl("ECOLI|ECODH|ECOBW",val)){
       return("ECOLI")
     }else if(grepl("HUMAN$", val)) {
       return("HUMAN")
     }else if(grepl("HUMAN_MSQC1$",val)){
       return("MSQC1")
     }else{
+      print(x)
       return(unkown)
     }
   }else{
+    print(x)
     return(unkown)
   }
 }
@@ -242,7 +246,7 @@ specProt <- data.frame(specProt, category)
 bwplot( Intensity ~ category |  Experiment + week ,  data=specProt,scales=list(x=list(rot=45),y=list(log=10)))
 ```
 
-```{r, fig.width=10, fig.height=10}
+```{r, fig.width=6, fig.height=6}
 head(specProt[specProt$category == "MSQC1",])
 res <- aggregate(Intensity ~ category + Experiment + week, data=specProt, FUN=function(x){sum(as.numeric(x),na.rm=TRUE)})
 xyplot(Intensity ~ week,
@@ -336,24 +340,24 @@ xyplot(log2(IntensityN.y/IntensityN.x)  ~ week | Peptide,
 
 ```
 
-```{r,fig.height=10, fig.width=10}
+```{r,fig.height=8, fig.width=8}
 resLys8Arg10None <- resLys8Arg10None %>% mutate(foldChangeExp = log2(IntensityN.y / IntensityN.x ))
 resLys8Arg10None$foldChangeExp[resLys8Arg10None$foldChangeExp== -Inf] <- NA
+resLys8Arg10None$foldChangeExp[resLys8Arg10None$foldChangeExp== Inf] <- NA
 
 resLys8Arg10None$Peptide <- as.character(resLys8Arg10None$Peptide)
 join <- inner_join(resLys8Arg10None ,theoryRatios , by=c("Peptide" = "Pepsequence"))
 
 xyplot(log2fc ~ foldChangeExp | Experiment, data= join,type = c("p"),
+        xlim=c(-10,15) ,ylim=c(-10,15),
        panel=function(x,y){
          print(panel.number())
          print(x,y)
          panel.xyplot(x,y)
          mod <- lm(y~x)
-         #print(coefficients(mod))
-         #print(sum(is.nan(x)))
-         #print(sum(is.nan(y)))
-         #print(sum(Inf == x))
-         #print(sum(Inf == y))
+         corval <- cor(y,x,method="spearman",use= "pairwise.complete.obs")
+         print(corval^2)
+         panel.text(-1,8, labels= paste("R^2 : ",round(corval^2,digits=2)))
          panel.abline(coef=coefficients(mod))
        }
 )
