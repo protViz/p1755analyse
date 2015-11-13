@@ -1,6 +1,6 @@
 ---
-title: "Crate annotation table"
-author: "Witold Wolski"
+title: "Create annotation table"
+author: "ETHZ"
 date: "16 October 2015"
 output: pdf_document
 ---

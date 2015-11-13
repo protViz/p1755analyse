@@ -4,3 +4,4 @@
 *.R
 *.html
 *.sqlite3
+*_files/

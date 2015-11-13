@@ -1,0 +1,100 @@
+---
+title: "fchanges"
+author: "Witold Wolski"
+date: "12 November 2015"
+output: html_document
+---
+
+# Aggregates charges
+
+## Looking at intensities msqc1
+
+```{r}
+lys8AggArg10 <- tmpLys8Arg10 %>% group_by(Peptide, uniprotID,  Experiment, week) %>% summarise(IntensityN = sum(Intensity, na.rm =TRUE))
+
+lys8AggArg10 %>% glimpse
+
+nonLAgg <- tmpNonLab %>% group_by(Peptide,uniprotID, Experiment,week) %>% summarise(IntensityN = sum(Intensity, na.rm =TRUE))
+nonLAgg %>% glimpse
+
+resLys8Arg10None <- inner_join(lys8AggArg10, nonLAgg,by=c("Peptide"="Peptide", "Experiment" = "Experiment",
+                                                          "uniprotID"  = "uniprotID", "week"="week"))
+
+for( i in which(lapply(resLys8Arg10None, class) == "character")){
+  resLys8Arg10None[[i]] <- as.factor(resLys8Arg10None[[i]])
+}
+
+```
+
+```{r,fig.width=8, fig.height=10}
+library(lattice)
+xyplot(IntensityN.y  ~ week | Peptide , data= resLys8Arg10None , scales=list(x=list(rot=90),y=list(log=10)),type="b",layout=c(2,6), auto.key=TRUE, main="light") 
+
+```
+
+
+```{r,fig.width=8, fig.height=10}
+xyplot(IntensityN.x  ~ week | Peptide  ,  data= resLys8Arg10None , scales=list(x=list(rot=90), y=list(log=10)),type="b", auto.key=TRUE, main="heavy", layout=c(2,6) ) 
+```
+
+```{r}
+theoryRatios <- read.table("theoryRatios.txt",sep=" ")
+theoryRatios[,1] <- gsub("\\[|\\]","",theoryRatios[,1])
+theoryRatios[,4] <- log2(theoryRatios[,3])
+theoryRatios
+colnames(theoryRatios) <- c("Pepsequence", "concentration", "logfoldchange" , "log2fc")
+theoryRatios<-theoryRatios[order(theoryRatios$Pepsequence),]
+```
+
+## Log fold change
+
+```{r,fig.width=8, fig.height=10}
+
+idx <- order(unique(resLys8Arg10None$Peptide))
+peptide.idx <- unique(resLys8Arg10None$Peptide)[idx]
+xyplot(log2(IntensityN.y/IntensityN.x)  ~ week | Peptide, 
+       index.cond=list(idx),
+       data = resLys8Arg10None, 
+       scales = list(x=list(rot=90)),
+       type="b", 
+       auto.key = TRUE, 
+       main="H/L", 
+       layout=c(2,6), 
+       panel=function(...){
+         panel.abline(h=theoryRatios[theoryRatios$Pepsequence == peptide.idx[panel.number()], "log2fc"], col="lightgray", lwd=2);
+         panel.xyplot(...)
+       } 
+)
+
+```
+
+```{r,fig.height=10, fig.width=10}
+resLys8Arg10None <- resLys8Arg10None %>% mutate(foldChangeExp = log2(IntensityN.y / IntensityN.x ))
+
+resLys8Arg10None$Peptide <- as.character(resLys8Arg10None$Peptide)
+join <- inner_join(resLys8Arg10None ,theoryRatios , by=c("Peptide" = "Pepsequence"))
+
+xyplot(log2fc ~ foldChangeExp | Experiment, data= join,type = c("p"),
+       panel=function(x,y,...){
+         panel.xyplot(x,y,...)
+         mod <- lm(y~x)
+         print(mod)
+         #panel.abline(h=0)
+         panel.abline(coef=coefficients(mod), na.rm=TRUE,x=0, y=0)
+       }
+)
+
+```
+
+
+```{r, fig.height=10}
+join$foldChangeExp[join$foldChangeExp == -Inf] <- NA
+corExp <- join %>% group_by(Experiment, week) %>% summarise(cor=cor(foldChangeExp ,log2fc, method="spearman",use= "pairwise.complete.obs" ))
+par(mar=c(22,4,2,2))
+plot(corExp$week, corExp$cor^2, las=2, ylim=c(0,1), ylab = "R^2 (spearman)", type="b", xlab="week", axes=F)
+axis(2,at=seq(0,1,by=0.1))
+axis(1,at=min(corExp$week):max(corExp$week),las=2)
+
+```
+
+

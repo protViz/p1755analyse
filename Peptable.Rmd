@@ -26,34 +26,21 @@ opts_chunk$set(echo=FALSE, results="hide")
 ```
 
 
-```{r}
-
-if(FALSE){
+```{r a}
+if(!exists("path")){
   path <- "c:/processing/external/EXTERNAL_0/paolo_20151029_MSQC1/combined/txt"
   dbname <- "paolo_20151029_MSQC1.sqlite3"
-} else if(TRUE){
-  path <- "c:/processing/external/EXTERNAL_1/jennifergarcia_20150923_firstBatchFromCRG/combined/txt"
-  dbname <- "jennifergarcia_20150923_firstBatchFromCRG.sqlite3"
-} else if(FALSE){
-  path <- "c:/processing/external/EXTERNAL_2/evytimmerman_20150929/combined/txt"
-  dbname <- "evytimmerman_20150929.sqlite3"
-} else if(FALSE){
-  path <- "c:/processing/external/EXTERNAL_3/ashevche_20151030_MSQC1/combined/txt"
-  dbname <- "ashevche_20151030_MSQC1.sqlite3"
-} else if(FALSE){
-    path <- "c:/processing/external/EXTERNAL_4/mechtler_20151029_QE5_B/combined/txt/"
-  dbname <- "mechtler_20150609_Qex4"
 }
 
 sqliteLocation <- "../output/"
-p1755::createSQLiteDB( path , sqliteLocation, dbname )
+#p1755::createSQLiteDB( path , sqliteLocation, dbname )
 dbpath = file.path(sqliteLocation,dbname) 
 
 ```
 
 
-```{r , echo=FALSE, results="hide", message=FALSE }
-mrm <- p1755::loadMSQC1Transitions( )
+```{r b, echo=FALSE, results="hide", message=FALSE }
+mrm <- p1755::loadMSQC1Transitions()
 protidS <- as.character( unique(mrm$uniprotID) )
 mrm <- tbl_df(mrm)
 mrm %>% group_by(Peptide, `Protein Name`) %>% summarise(pepcount = n())
@@ -69,7 +56,7 @@ annotations %>% glimpse
 ```
 
 
-```{r}
+```{r c}
 
 my_mqdb <- src_sqlite(dbpath)
 summary_tbl <- tbl(my_mqdb, "summary")
@@ -89,24 +76,23 @@ as.matrix(dd)
 ddx <- t(as.matrix(dd))
 ddl <- melt(t(as.matrix(dd)))
 colnames(ddl)<-c("week","type","nr")
-library(lattice)
-
 ```
 
 # Analysed Dataset is `r unique(summary_tbl$siteinstrument)`
 
-```{r, fig.height=8, fig.width=8}
+
+```{r test, fig.height=8, fig.width=8}
+library(lattice)
+
 xyplot( nr ~ week, group =  type ,data=ddl,type="b",layout=c(1,1),
         scales = list(y = list(log = 10, equispaced.log = FALSE),x = list(cex=1,at=min(ddl$week):max(ddl$week)))
         ,auto.key = TRUE)
 
 ```
 
-
 <!-- # Peptide Evidence -->
 
 ```{r}
-dbListTables( my_mqdb$con )
 
 evidence_tbl <- tbl(my_mqdb, "evidence")
 
@@ -190,7 +176,7 @@ rdd <- rbind(cbind(type = "all",rd),cbind(type = "H",rd2),cbind(type = "L",rd3))
 dim(rdd)
 
 xyplot(pepcount ~ week | Peptide ,  data = rdd, group=type, type="b", layout=c(2,7), pch=c(1,2,3), lty=c(1,2,3),
-       main="all peptide count", par.settings = list(superpose.symbol = list(pch = 1:3)), auto.key = TRUE,scales=list(x = list(cex=0.8,at=min(rdd$week):max(rdd$week),rot=90)), ylim=c(0,100))
+       main="all peptide count", par.settings = list(superpose.symbol = list(pch = 1:3)), auto.key = TRUE,scales=list(x = list(cex=0.8,at=min(rdd$week):max(rdd$week),rot=90)))
 
 ```
 
@@ -319,7 +305,15 @@ resLys8Arg10None <- resLys8Arg10None %>% mutate(foldChangeExp = log2(IntensityN.
 resLys8Arg10None$Peptide <- as.character(resLys8Arg10None$Peptide)
 join <- inner_join(resLys8Arg10None ,theoryRatios , by=c("Peptide" = "Pepsequence"))
 
-xyplot(log2fc ~ foldChangeExp | Experiment, data= join,type = c("p", "r"), col.line = "darkorange", lwd = 1)
+xyplot(log2fc ~ foldChangeExp | Experiment, data= join,type = c("p"),
+       panel=function(x,y,...){
+         panel.xyplot(x,y,...)
+         mod <- lm(y~x)
+         print(mod)
+         #panel.abline(h=0)
+         panel.abline(coef=coefficients(mod), na.rm=TRUE)
+       }
+       )
 
 ```
 
