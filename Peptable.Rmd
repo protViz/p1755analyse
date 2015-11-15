@@ -45,7 +45,7 @@ if(!exists("path")){
 }
 
 sqliteLocation <- "../output/"
-p1755::createSQLiteDB( path , sqliteLocation, dbname )
+#p1755::createSQLiteDB( path , sqliteLocation, dbname )
 dbpath = file.path(sqliteLocation,dbname) 
 
 ```

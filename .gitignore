@@ -5,3 +5,5 @@
 *.html
 *.sqlite3
 *_files/
+*.knig.md
+*.utf8.md
